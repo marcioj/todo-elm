@@ -15,12 +15,12 @@ type alias Todo =
 
 
 type alias Model =
-    { field : String, todos : List Todo }
+    List Todo
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { field = "", todos = [ Todo "Hello" False, Todo "Dood" False ] }, Cmd.none )
+    ( [ Todo "Sweep the floor" False, Todo "Pick up the trash" False ] , Cmd.none )
 
 
 
@@ -29,8 +29,7 @@ init =
 
 type Msg
     = NoOp
-    | Add
-    | UpdateField String
+    | Add String
     | Remove Todo
     | ToggleCompleted Todo
 
@@ -68,13 +67,11 @@ view model =
         , input
             [ placeholder "what needs to be done?"
             , autofocus True
-            , value model.field
-            , onInput UpdateField
-            , onEnter Add
+            , onEnterInput Add
             ]
             []
-        , ul [ style [ ( "list-style", "none" ) ] ] (List.map renderTodo model.todos)
-        , div [] [ remainingTodos model.todos ]
+        , ul [ style [ ( "list-style", "none" ) ] ] (List.map renderTodo model)
+        , div [] [ remainingTodos model ]
         ]
 
 
@@ -89,17 +86,28 @@ remainingTodos todos =
         span []
             [ text (itemsLeft ++ " items left") ]
 
+{-| A Json.Decoder that combines Html.Events.keyCode and Html.Events.targetValue in a tuple.
+-}
+keyCodeAndValue: Json.Decoder (Int, String)
+keyCodeAndValue =
+    Json.object2 (,) keyCode targetValue
 
-onEnter : Msg -> Attribute Msg
-onEnter msg =
+{-| Triggers an event when the user presses down the ENTER key (keycode 13).
+
+It grabs the **string** value at `event.target.value`, so it will not work if
+need some other type of information.
+Check Html.Events.keyCode and Html.Events.targetValue for more information.
+-}
+onEnterInput : (String -> Msg) -> Attribute Msg
+onEnterInput msg =
     let
-        tagger code =
+        handleKeyDown (code, value) =
             if code == 13 then
-                msg
+                msg value
             else
                 NoOp
     in
-        on "keydown" (Json.map tagger keyCode)
+        on "keydown" (Json.map handleKeyDown keyCodeAndValue )
 
 
 
@@ -112,25 +120,14 @@ update msg model =
         NoOp ->
             ( model, Cmd.none )
 
-        UpdateField msg ->
-            ( { model | field = msg }, Cmd.none )
-
-        Add ->
-            ( { model | todos = (Todo model.field False) :: model.todos, field = "" }, Cmd.none )
+        Add newtodo ->
+            ( (Todo newtodo False) :: model, Cmd.none )
 
         Remove todo ->
-            let
-                newTodos =
-                    List.filter (\item -> item /= todo) model.todos
-            in
-                ( { model | todos = newTodos }, Cmd.none )
+            ( List.filter (\item -> item /= todo) model, Cmd.none )
 
         ToggleCompleted current ->
-            let
-                newTodos =
-                    List.map (\todo -> toggle current todo) model.todos
-            in
-                ( { model | todos = newTodos }, Cmd.none )
+            ( List.map (\todo -> toggle current todo) model, Cmd.none )
 
 
 toggle : Todo -> Todo -> Todo
